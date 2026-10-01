@@ -9,6 +9,16 @@ class AuditRequest(BaseModel):
 
 app = FastAPI()
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 def audit(requirements, completed):    
     missing = []
     for n in requirements:
@@ -50,3 +60,11 @@ def run_audit(req: AuditRequest):
 
     requirements = schools[req.school][req.major]
     return audit(requirements, req.completed)
+
+@app.get("/courses")
+def get_courses(school: str, major: str):
+    if school not in schools:
+        raise HTTPException(status_code=404, detail=f"School '{school}' not found")
+    if major not in schools[school]:
+        raise HTTPException(status_code=404, detail=f"Major '{major}' not found")
+    return schools[school][major]

@@ -1,11 +1,13 @@
-import { useState } from 'react'
 import './App.css'
+import { useState, useEffect } from 'react'
 
 function App() {
   const [university, setUniversity] = useState('')
   const [major, setMajor] = useState('')
   const [step, setStep] = useState(1)
   const [selectedCourses, setSelectedCourses] = useState([])
+  const [missing, setMissing] = useState([])
+  const [courses, setCourses] = useState([])
 
   // Temporary major lists
   const majors = {
@@ -16,13 +18,13 @@ function App() {
       'Biology'
     ],
     UCLA: [
-      'Computer Science',
+      'Computer Science B.S',
       'Data Theory',
       'Economics',
       'Biology'
     ],
     UCI: [
-      'Computer Science',
+      'Computer Science B.S',
       'Data Science',
       'Business Administration',
       'Biology'
@@ -35,16 +37,30 @@ function App() {
     ]
   }
 
-  // Temporary course list
-  const courses = [
-    'MATH 2A',
-    'MATH 2B',
-    'MATH 4A',
-    'MATH 4B',
-    'MATH 6A',
-    'PSTAT 10',
-    'CMPSC 9'
-  ]
+  const schoolNames = {
+  UCI: 'UC Irvine',
+  UCLA: 'UCLA',
+  UCSB: 'UC Santa Barbara',
+  UCSD: 'UC San Diego',
+}
+
+useEffect(() => {
+  if (major === '') return   // no major picked yet — nothing to fetch
+
+  async function loadCourses() {
+    const url = `http://127.0.0.1:8000/courses?school=${encodeURIComponent(schoolNames[university])}&major=${encodeURIComponent(major)}`
+    const response = await fetch(url)
+    if (!response.ok) {
+      setCourses([])   // no data for this major — empty checklist
+      return
+    }
+    const data = await response.json()
+    setCourses(data)
+    setSelectedCourses([])   // clear old checkboxes when major changes
+  }
+
+  loadCourses()
+}, [major])
 
   // Add or remove a course
   function handleCourseChange(course) {
@@ -64,6 +80,28 @@ function App() {
     setSelectedCourses([])
     setStep(1)
   }
+
+  async function getPlan() {
+  const response = await fetch('http://127.0.0.1:8000/audit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      school: schoolNames[university],
+      major: major,
+      completed: selectedCourses,
+    }),
+  })
+
+  if (!response.ok) {
+    setMissing(['(Not found — no data for this school/major yet)'])
+    setStep(4)
+    return
+  }
+
+  const data = await response.json()
+  setMissing(data)
+  setStep(4)
+}
 
   // Find courses that have not been completed
   const remainingCourses = courses.filter(
@@ -183,7 +221,7 @@ function App() {
 
             <button
               type="button"
-              onClick={() => setStep(4)}
+              onClick={getPlan}
             >
               See My Course Plan
             </button>
@@ -230,10 +268,10 @@ function App() {
 
               <h3>Courses Still Needed</h3>
 
-              {remainingCourses.length === 0 ? (
+              {missing.length === 0 ? (
                 <p>All courses completed!</p>
               ) : (
-                remainingCourses.map((course) => (
+                missing.map((course) => (
                   <div
                     className="remaining-course"
                     key={course}
